@@ -1,5 +1,6 @@
 import requests
 import os
+from app.core.config import settings
 
 GOOGLE_MAPS_API__KEY=os.getenv("GOOGLE_MAPS_API_KEY")
 
@@ -10,7 +11,7 @@ def get_directions(origin:str,destination:str,waypoints:list[str]):
         "origin": origin,
         "destination":destination,
         "waypoints":"|".join(waypoints),
-        "key:" GOOGLE_MAPS_API_KEY
+        "key": settings.GOOGLE_MAPS_API_KEY
     }
 
     response=requests.get(url,params=params)
@@ -37,5 +38,20 @@ def get_directions(origin:str,destination:str,waypoints:list[str]):
         "steps":steps
     }
 
+def calculate_route_km(origin, destination, waypoints):
+    url = "https://maps.googleapis.com/maps/api/directions/json"
+    params = {
+        "origin": origin,
+        "destination": destination,
+        "waypoints": "|".join(waypoints),
+        "key": settings.GOOGLE_MAPS_API_KEY
+    }
 
+    res = requests.get(url, params=params).json()
 
+    distance = sum(
+        leg["distance"]["value"]
+        for leg in res["routes"][0]["legs"]
+    ) / 1000
+
+    return round(distance, 2)

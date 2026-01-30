@@ -1,18 +1,57 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.database import get_db
 from app.core.security import (
     verify_password,
     hash_password,
-    create_access_token,
-    get_db
+    create_access_token
 )
 from app.models.salesman import Salesman
-from app.schemas.auth_schema import LoginRequest, LoginResponse, ChatOnboardRequest
+from app.schemas.auth_schema import (
+    LoginRequest,
+    LoginResponse,
+    RegisterRequest
+)
 
 router = APIRouter()
 
-# Login API
+
+# REGISTER
+@router.post("/register", status_code=201)
+def register(
+    request: RegisterRequest,
+    db: Session = Depends(get_db)
+):
+    existing_user = db.query(Salesman).filter(
+        Salesman.email == request.email
+    ).first()
+
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+
+    new_user = Salesman(
+        name=request.name,
+        email=request.email,
+        hashed_password=hash_password(request.password),
+        role=request.role,
+        team_id=request.team_id
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {
+        "message": "User registered successfully",
+        "user_id": new_user.id
+    }
+
+
+# LOGIN
 @router.post("/login", response_model=LoginResponse)
 def login(
     request: LoginRequest,
@@ -23,7 +62,7 @@ def login(
     ).first()
 
     if not user or not verify_password(
-        request.password, user.password
+        request.password, user.hashed_password
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -31,7 +70,7 @@ def login(
         )
 
     token = create_access_token(
-        data={"sub": user.id, "role": user.role}
+        data={"sub": str(user.id), "role": user.role}
     )
 
     return LoginResponse(
@@ -40,35 +79,3 @@ def login(
         role=user.role
     )
 
-# Chatbot onboarding
-@router.post("/chat-onboard")
-def chat_onboard(
-    request: ChatOnboardRequest,
-    db: Session = Depends(get_db)
-):
-    existing_user = db.query(Salesman).filter(
-        Salesman.email == request.email
-    ).first()
-
-    if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="User already exists"
-        )
-
-    new_user = Salesman(
-        name=request.name,
-        email=request.email,
-        password=hash_password(request.password),
-        role=request.role,
-        team_id=request.team_id
-    )
-
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return {
-        "message": "Salesman onboarded successfully",
-        "salesman_id": new_user.id
-    }

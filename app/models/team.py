@@ -5,6 +5,7 @@ class Team(Base):
     __tablename__="teams"
 
     id=Column(Integer,primary_key=True)
+    name = Column(String, nullable=False)
     team_name=Column(String)
     manager_id=Column(Integer)
     teammates_names=Column(JSON)

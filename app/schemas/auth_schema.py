@@ -1,6 +1,12 @@
 from pydantic import BaseModel, EmailStr
 from typing import Literal
 
+class RegisterRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    role: str
+
 
 class LoginRequest(BaseModel):
     email: EmailStr

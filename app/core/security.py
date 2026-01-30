@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import SessionLocal
+from app.core.database import get_db
 from app.models.salesman import Salesman
 
 # Password hashing
@@ -17,20 +17,15 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-# Database dependency
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # Password utilities
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
+
 
 # JWT utilities
 def create_access_token(
@@ -45,14 +40,14 @@ def create_access_token(
     )
     to_encode.update({"exp": expire})
 
-    encoded_jwt = jwt.encode(
+    return jwt.encode(
         to_encode,
         settings.SECRET_KEY,
         algorithm=settings.JWT_ALGORITHM
     )
-    return encoded_jwt
 
-# Get current user
+
+# Get current logged-in user
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
@@ -69,20 +64,21 @@ def get_current_user(
             settings.SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM]
         )
-        user_id: int = payload.get("sub")
+        user_id: str | None = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
 
-    user = db.query(Salesman).filter(Salesman.id == user_id).first()
+    user = db.query(Salesman).filter(Salesman.id == int(user_id)).first()
     if user is None:
         raise credentials_exception
 
     return user
 
+
 # Role-based guard
-def require_role(required_roles: list[str]):
+def require_role(required_roles: List[str]):
     def role_checker(
         current_user: Salesman = Depends(get_current_user)
     ):
