@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.services.task_allocator import allocate_task
+from app.services.task_allocator import allocate_task_from_chat
 from app.schemas.daily_task_schema import DailyTaskResponse
 
 router = APIRouter()

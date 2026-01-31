@@ -1,44 +1,66 @@
 import requests
-import os
 from app.core.config import settings
 
-GOOGLE_MAPS_API__KEY=os.getenv("GOOGLE_MAPS_API_KEY")
 
-def get_directions(origin:str,destination:str,waypoints:list[str]):
-    url="https://maps.googleapis.com/maps/api/directions/json"
+def get_directions(origin: str, destination: str, waypoints: list[str]):
+    """
+    Fetch route directions from Google Maps API
+    and return distance, duration, polyline, steps
+    """
 
-    params={
+    url = "https://maps.googleapis.com/maps/api/directions/json"
+
+    params = {
         "origin": origin,
-        "destination":destination,
-        "waypoints":"|".join(waypoints),
+        "destination": destination,
+        "waypoints": "|".join(waypoints),
         "key": settings.GOOGLE_MAPS_API_KEY
     }
 
-    response=requests.get(url,params=params)
-    data=response.json()
+    response = requests.get(url, params=params)
+    data = response.json()
 
-    if data["status"]!="OK":
-        raise Exception("Google Maps API Error")
+    if data.get("status") != "OK":
+        raise Exception(f"Google Maps API Error: {data.get('status')}")
 
-    route=data["routes"][0]
-    leg_data=route["legs"]
+    route = data["routes"][0]
+    legs = route["legs"]
 
-    total_didtsance=sum(
-        leg["distance"]["value"] for leg in leg_data
-    )/1000 #meters->km
+    # ✅ Distance (km)
+    total_distance = sum(
+        leg["distance"]["value"] for leg in legs
+    ) / 1000
 
-    total_duration=sum(
-        leg["duration"]["value"]for leg in leg_data
-    )/60 #seconda->minutes
+    # ✅ Duration (minutes)
+    total_duration = sum(
+        leg["duration"]["value"] for leg in legs
+    ) / 60
 
-    return{
-        "distance_km":round(total_distance,2),
-        "durationminutes": round(total_duration),
-        "polyline":route["overview_polyline"]["points"],
-        "steps":steps
+    # ✅ Steps extraction (FIX)
+    steps = []
+    for leg in legs:
+        for step in leg.get("steps", []):
+            steps.append({
+                "instruction": step["html_instructions"],
+                "distance": step["distance"]["text"],
+                "duration": step["duration"]["text"],
+                "start_location": step["start_location"],
+                "end_location": step["end_location"]
+            })
+
+    return {
+        "distance_km": round(total_distance, 2),
+        "duration_minutes": round(total_duration),
+        "polyline": route["overview_polyline"]["points"],
+        "steps": steps
     }
 
-def calculate_route_km(origin, destination, waypoints):
+
+def calculate_route_km(origin: str, destination: str, waypoints: list[str]) -> float:
+    """
+    Lightweight distance calculator (no steps)
+    """
+
     url = "https://maps.googleapis.com/maps/api/directions/json"
     params = {
         "origin": origin,
@@ -48,6 +70,9 @@ def calculate_route_km(origin, destination, waypoints):
     }
 
     res = requests.get(url, params=params).json()
+
+    if res.get("status") != "OK":
+        raise Exception(f"Google Maps API Error: {res.get('status')}")
 
     distance = sum(
         leg["distance"]["value"]

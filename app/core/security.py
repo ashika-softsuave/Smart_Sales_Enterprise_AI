@@ -4,24 +4,27 @@ from typing import Optional, List
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.salesman import Salesman
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# OAuth2 scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# Password hashing (SAFE, Windows-friendly)
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256"],
+    deprecated="auto"
+)
+
+# Bearer token security
+security = HTTPBearer()
 
 
 # Password utilities
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
-
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -49,13 +52,15 @@ def create_access_token(
 
 # Get current logged-in user
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> Salesman:
+
+    token = credentials.credentials
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication credentials",
-        headers={"WWW-Authenticate": "Bearer"},
     )
 
     try:
@@ -64,14 +69,14 @@ def get_current_user(
             settings.SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM]
         )
-        user_id: str | None = payload.get("sub")
+        user_id = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
 
     user = db.query(Salesman).filter(Salesman.id == int(user_id)).first()
-    if user is None:
+    if not user:
         raise credentials_exception
 
     return user
