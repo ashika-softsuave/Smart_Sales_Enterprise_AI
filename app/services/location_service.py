@@ -1,12 +1,17 @@
 """
-Handles temporary conversational context
-(like waiting for user's location)
+Handles conversational location context
+and Google Maps place resolution
 """
 import requests
 from app.core.config import settings
 
 
-def geocode_location(query: str) -> str:
+# ---- In-memory chat context (per user) ----
+USER_LOCATION_CONTEXT = {}
+
+
+# ---- Geocoding with India bias (IMPORTANT) ----
+def geocode_location(query: str) -> dict:
     url = "https://maps.googleapis.com/maps/api/geocode/json"
     params = {
         "address": query,
@@ -16,29 +21,43 @@ def geocode_location(query: str) -> str:
     res = requests.get(url, params=params).json()
 
     if res["status"] != "OK":
-        raise Exception(f"Unable to locate place: {query}")
+        raise ValueError(f"Unable to locate place: {query}")
 
-    return res["results"][0]["formatted_address"]
+    location = res["results"][0]["geometry"]["location"]
 
-USER_LOCATION_CONTEXT = {}
+    return {
+        "address": res["results"][0]["formatted_address"],
+        "lat": location["lat"],
+        "lng": location["lng"]
+    }
 
-def fetch_nearby_stores(location: str, limit: int = 6):
-    url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+
+# ---- Fetch nearby stores dynamically ----
+def fetch_nearby_stores(lat: float, lng: float, limit: int = 6):
+    url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
     params = {
-        "query": f"supermarket near {location}",
+        "location": f"{lat},{lng}",
+        "radius": 5000,  # 5km
+        "type": "supermarket",
         "key": settings.GOOGLE_MAPS_API_KEY
     }
 
     res = requests.get(url, params=params).json()
 
     if res["status"] != "OK":
-        raise Exception("No stores found")
+        raise ValueError("No nearby stores found")
 
     return [
-        place["name"]
+        {
+            "name": place["name"],
+            "lat": place["geometry"]["location"]["lat"],
+            "lng": place["geometry"]["location"]["lng"]
+        }
         for place in res["results"][:limit]
     ]
 
+
+# ---- Chat context helpers ----
 def set_waiting_for_location(user_id: int):
     USER_LOCATION_CONTEXT[user_id] = {
         "awaiting_location": True

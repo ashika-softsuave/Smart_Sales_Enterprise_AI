@@ -4,3 +4,7 @@ from .store import Store
 from .product import Product
 from .daily_task import DailyTask
 from .sales_report import SalesReport
+from app.models.salesman import Salesman
+from app.models.daily_sales_log import DailySalesLog
+# import other models here
+

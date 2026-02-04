@@ -1,7 +1,5 @@
 from pydantic_settings import BaseSettings
 
-
-
 class Settings(BaseSettings):
     # App
     APP_NAME: str

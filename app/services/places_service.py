@@ -1,24 +1,26 @@
 import requests
 from app.core.config import settings
 
-def fetch_nearby_stores(location: str, limit: int = 6):
-    """
-    Uses Google Places API to fetch nearby stores
-    """
 
-    url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+def fetch_nearby_stores(lat: float, lng: float, limit: int = 6):
+    url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
     params = {
-        "query": f"supermarket in {location}",
+        "location": f"{lat},{lng}",
+        "radius": 5000,
+        "type": "supermarket",
         "key": settings.GOOGLE_MAPS_API_KEY
     }
 
     res = requests.get(url, params=params).json()
 
     if res["status"] != "OK":
-        raise Exception("Failed to fetch nearby stores")
+        return []
 
-    stores = []
-    for place in res["results"][:limit]:
-        stores.append(place["name"])
-
-    return stores
+    return [
+        {
+            "name": place["name"],
+            "lat": place["geometry"]["location"]["lat"],
+            "lng": place["geometry"]["location"]["lng"]
+        }
+        for place in res["results"][:limit]
+    ]

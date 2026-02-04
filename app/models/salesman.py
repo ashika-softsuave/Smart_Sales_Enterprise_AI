@@ -13,4 +13,4 @@ class Salesman(Base):
 
     team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
 
-    daily_travel = Column(Float, default=0.0)
+
